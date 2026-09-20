@@ -232,6 +232,17 @@
     margin-left:6px;
     white-space:nowrap;
   }
+  .team-rank{
+    font-family:Arial, sans-serif;
+    font-size:0.68rem;
+    font-weight:700;
+    color:var(--gold);
+    background:rgba(232,184,75,0.15);
+    border:1px solid rgba(232,184,75,0.4);
+    border-radius:4px;
+    padding:1px 5px;
+    flex-shrink:0;
+  }
   .team-right{
     display:flex;
     align-items:center;
@@ -379,12 +390,13 @@ const CATEGORY_META = {
 function pickOffensiveStars(competition, away, home){
   const leaders = competition.leaders || [];
   const stars = [];
-  // Map each team's abbreviation to its full display name, so we can label
-  // each star with a real team name instead of trusting nested athlete data.
-  const nameByAbbrev = {};
+  // Map each team's id to its full display name. Real ESPN data only gives
+  // us a team id on the leader/athlete object (no abbreviation), so id is
+  // the reliable join key — matching on abbreviation silently fails.
+  const nameById = {};
   [away, home].forEach(c => {
-    const abbrev = (c.team.abbreviation || "").toUpperCase();
-    if(abbrev) nameByAbbrev[abbrev] = c.team.shortDisplayName || c.team.displayName || abbrev;
+    const id = c.team && c.team.id;
+    if(id) nameById[id] = c.team.shortDisplayName || c.team.displayName || "";
   });
   leaders.forEach(cat => {
     const meta = CATEGORY_META[cat.name];
@@ -392,12 +404,12 @@ function pickOffensiveStars(competition, away, home){
     const top = (cat.leaders && cat.leaders[0]) ? cat.leaders[0] : null;
     if(!top) return;
     const athlete = top.athlete || {};
-    const rawAbbrev = ((athlete.team && athlete.team.abbreviation) || (top.team && top.team.abbreviation) || "").toUpperCase();
+    const teamId = (athlete.team && athlete.team.id) || (top.team && top.team.id) || "";
     stars.push({
       emoji: meta.emoji,
       label: meta.label,
       name: athlete.shortName || athlete.displayName || "Unknown",
-      teamName: nameByAbbrev[rawAbbrev] || rawAbbrev || "",
+      teamName: nameById[teamId] || "",
       stat: top.displayValue || ""
     });
   });
@@ -439,6 +451,10 @@ function renderGame(event){
     const color = team.team.color ? `#${team.team.color}` : '#3f6b52';
     const logo = team.team.logo || "";
     const record = (team.records && team.records[0]) ? team.records[0].summary : "";
+    // ESPN uses 99 (or omits the field) to mean "unranked" — only show a
+    // badge for teams actually inside the Top 25.
+    const rank = team.curatedRank && team.curatedRank.current;
+    const rankHtml = (rank && rank <= 25) ? `<span class="team-rank">#${rank}</span>` : '';
     // Try the real ESPN logo first; if it 404s or fails to load, swap in the
     // colored abbreviation badge automatically so a layout is never broken.
     const badgeHtml = logo
@@ -449,6 +465,7 @@ function renderGame(event){
       <div class="team-row ${isTrailing ? 'trailing' : ''}">
         <div class="team-left">
           ${badgeHtml}
+          ${rankHtml}
           <span class="team-name">${name}</span>
           <span class="team-record">${record}</span>
         </div>
